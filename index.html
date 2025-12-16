@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公文格式转换工具</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        /* 上半部分：输入区 */
+        .input-section {
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            resize: vertical;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        button {
+            padding: 10px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        #convertBtn {
+            background-color: #007BFF;
+            color: white;
+        }
+
+        #convertBtn:hover {
+            background-color: #0056b3;
+        }
+
+        #downloadBtn {
+            background-color: #28a745;
+            color: white;
+            display: none; /* 初始隐藏 */
+        }
+
+        #downloadBtn:hover {
+            background-color: #218838;
+        }
+
+        #statusMsg {
+            color: #666;
+            font-size: 14px;
+            font-weight: bold;
+            display: none;
+        }
+
+        /* 下半部分：预览区 */
+        .preview-section {
+            margin-top: 30px;
+            border-top: 2px dashed #eee;
+            padding-top: 20px;
+        }
+
+        .preview-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: block;
+            color: #555;
+        }
+
+        #outputPreview {
+            border: 1px solid #ccc;
+            padding: 40px; /* 模拟A4纸页边距 */
+            background: white;
+            min-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* * 核心样式定义：用于预览和导出 
+         * 注意：这里使用pt作为单位以确保Word兼容性
+         * 二号字 ≈ 22pt
+         * 三号字 ≈ 16pt
+         */
+        
+        /* 大标题样式 */
+        .doc-title {
+            font-family: '方正小标宋_GBK', 'SimSun', serif; /* 回退字体 */
+            font-size: 22pt;
+            font-weight: normal; /* 不加粗 */
+            text-align: center;
+            line-height: 28.8pt;
+            text-indent: 0;
+            margin: 0 0 28.8pt 0; /* 下方留点空隙 */
+        }
+
+        /* 二级标题样式 (黑体, 三号, 不加粗, 缩进2字符) */
+        .doc-h2 {
+            font-family: 'SimHei', '黑体', sans-serif;
+            font-size: 16pt;
+            font-weight: normal; /* 不加粗 */
+            text-indent: 2em;
+            line-height: 28.8pt;
+            margin: 0;
+        }
+
+        /* 正文样式 (仿宋, 三号, 不加粗, 缩进2字符) */
+        .doc-p {
+            font-family: '方正仿宋_GB2312', 'FangSong_GB2312', 'FangSong', serif;
+            font-size: 16pt;
+            font-weight: normal;
+            text-indent: 2em;
+            line-height: 28.8pt;
+            margin: 0;
+            text-align: justify; /* 两端对齐更美观 */
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>公文格式排版工具</h1>
+    
+    <div class="input-section">
+        <textarea id="inputText" placeholder="在此粘贴纯文本内容。&#10;第一行将被识别为大标题。&#10;以“一、”、“二、”开头的行将被识别为二级标题。"></textarea>
+        <div class="controls">
+            <button id="convertBtn" onclick="processText()">开始转换</button>
+            <span id="statusMsg">✅ 已转换完成</span>
+            <button id="downloadBtn" onclick="exportToWord()">下载doc文件</button>
+        </div>
+    </div>
+
+    <div class="preview-section">
+        <span class="preview-label">实际效果预览：</span>
+        <div id="outputPreview"></div>
+    </div>
+</div>
+
+<script>
+    function processText() {
+        const rawText = document.getElementById('inputText').value;
+        if (!rawText.trim()) {
+            alert("请输入需要转换的文本！");
+            return;
+        }
+
+        // 1. 去除用于分段的横杠 "-"
+        let cleanText = rawText.replace(/-/g, '');
+
+        // 2. 按行分割
+        let lines = cleanText.split('\n');
+        let htmlContent = '';
+
+        // 3. 逐行处理逻辑
+        lines.forEach((line, index) => {
+            let trimLine = line.trim();
+            if (trimLine === '') return; // 跳过空行
+
+            // 逻辑判断：
+            // 第一行 -> 大标题
+            // 以中文数字+顿号开头 (一、二、...) -> 二级标题
+            // 其他 -> 正文
+            
+            // 简单判断中文数字编号的正则：以 一、 或者 十一、 等开头
+            const level2Regex = /^[一二三四五六七八九十]+、/;
+
+            if (index === 0) {
+                // 大标题：方正小标宋_GBK，二号字(22pt)，不加粗，无缩进
+                htmlContent += `<div class="doc-title">${trimLine}</div>`;
+            } 
+            else if (level2Regex.test(trimLine)) {
+                // 二级标题：黑体，三号字(16pt)，不加粗，首行缩进2字符
+                htmlContent += `<div class="doc-h2">${trimLine}</div>`;
+            } 
+            else {
+                // 正文：方正仿宋_GB2312，三号字(16pt)，不加粗，首行缩进2字符
+                htmlContent += `<div class="doc-p">${trimLine}</div>`;
+            }
+        });
+
+        // 渲染到预览框
+        document.getElementById('outputPreview').innerHTML = htmlContent;
+
+        // UI 交互更新
+        document.getElementById('statusMsg').style.display = 'inline';
+        document.getElementById('downloadBtn').style.display = 'inline-block';
+    }
+
+    function exportToWord() {
+        const content = document.getElementById('outputPreview').innerHTML;
+        
+        // 构建一个完整的HTML结构，包含Word所需的Namespace和Style
+        // 关键点：将CSS直接内嵌到HTML头部，以便Word识别
+        const header = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+                  xmlns:w='urn:schemas-microsoft-com:office:word' 
+                  xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Export HTML to Word Document with CSS</title>
+                <style>
+                    /* 再次定义样式，确保Word能读取到 */
+                    @page {
+                        mso-page-orientation: portrait;
+                        size: 21cm 29.7cm; /* A4 */
+                        margin: 2.54cm 3.17cm; /* 标准页边距 */
+                    }
+                    body {
+                        font-family: "方正仿宋_GB2312", "FangSong", serif;
+                    }
+                    .doc-title {
+                        font-family: '方正小标宋_GBK', serif;
+                        font-size: 22pt;
+                        font-weight: normal;
+                        text-align: center;
+                        line-height: 28.8pt;
+                        text-indent: 0;
+                        margin-bottom: 28.8pt;
+                        mso-style-name: "Title";
+                    }
+                    .doc-h2 {
+                        font-family: 'SimHei', '黑体', sans-serif;
+                        font-size: 16pt;
+                        font-weight: normal;
+                        text-indent: 2em;
+                        line-height: 28.8pt;
+                        margin: 0;
+                        mso-style-name: "Heading 2";
+                    }
+                    .doc-p {
+                        font-family: '方正仿宋_GB2312', 'FangSong_GB2312', serif;
+                        font-size: 16pt;
+                        font-weight: normal;
+                        text-indent: 2em;
+                        line-height: 28.8pt;
+                        margin: 0;
+                        text-align: justify;
+                        text-justify: inter-ideograph; /* 解决中文两端对齐问题 */
+                    }
+                </style>
+            </head>
+            <body>
+        `;
+        
+        const footer = "</body></html>";
+        const sourceHTML = header + content + footer;
+
+        // 创建Blob对象
+        const blob = new Blob(['\ufeff', sourceHTML], {
+            type: 'application/msword'
+        });
+
+        // 触发下载
+        const downloadLink = document.createElement("a");
+        document.body.appendChild(downloadLink);
+
+        if (navigator.msSaveOrOpenBlob) {
+            navigator.msSaveOrOpenBlob(blob, '公文格式文档.doc');
+        } else {
+            const url = URL.createObjectURL(blob);
+            downloadLink.href = url;
+            downloadLink.download = '公文格式文档.doc';
+            downloadLink.click();
+            setTimeout(function() {
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(downloadLink);
+            }, 0);
+        }
+    }
+</script>
+
+</body>
+</html>
