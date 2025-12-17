@@ -54,6 +54,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-wrap: wrap; 
         }
 
         button {
@@ -77,7 +78,7 @@
         #downloadBtn {
             background-color: #28a745;
             color: white;
-            display: none; /* 初始隐藏 */
+            display: none; 
         }
 
         #downloadBtn:hover {
@@ -89,6 +90,33 @@
             font-size: 14px;
             font-weight: bold;
             display: none;
+        }
+
+        /* 提示框样式 */
+        .tip-box {
+            display: none; 
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .tip-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .tip-box ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .tip-box li {
+            margin-bottom: 5px;
         }
 
         /* 下半部分：预览区 */
@@ -107,48 +135,43 @@
 
         #outputPreview {
             border: 1px solid #ccc;
-            padding: 40px; /* 模拟A4纸页边距 */
+            padding: 40px; 
             background: white;
             min-height: 400px;
             overflow-y: auto;
         }
 
         /* * 核心样式定义：用于预览和导出 
-         * 注意：这里使用pt作为单位以确保Word兼容性
-         * 二号字 ≈ 22pt
-         * 三号字 ≈ 16pt
+         * 更新：首行缩进改为 1.15cm
          */
         
-        /* 大标题样式 */
         .doc-title {
-            font-family: '方正小标宋_GBK', 'SimSun', serif; /* 回退字体 */
+            font-family: '方正小标宋_GBK', 'SimSun', serif;
             font-size: 22pt;
-            font-weight: normal; /* 不加粗 */
+            font-weight: normal;
             text-align: center;
             line-height: 28.8pt;
             text-indent: 0;
-            margin: 0 0 28.8pt 0; /* 下方留点空隙 */
+            margin: 0 0 28.8pt 0;
         }
 
-        /* 二级标题样式 (黑体, 三号, 不加粗, 缩进2字符) */
         .doc-h2 {
             font-family: 'SimHei', '黑体', sans-serif;
             font-size: 16pt;
-            font-weight: normal; /* 不加粗 */
-            text-indent: 2em;
+            font-weight: normal;
+            text-indent: 1.15cm; /* 这里修改为 1.15cm */
             line-height: 28.8pt;
             margin: 0;
         }
 
-        /* 正文样式 (仿宋, 三号, 不加粗, 缩进2字符) */
         .doc-p {
             font-family: '方正仿宋_GB2312', 'FangSong_GB2312', 'FangSong', serif;
             font-size: 16pt;
             font-weight: normal;
-            text-indent: 2em;
+            text-indent: 1.15cm; /* 这里修改为 1.15cm */
             line-height: 28.8pt;
             margin: 0;
-            text-align: justify; /* 两端对齐更美观 */
+            text-align: justify;
         }
 
     </style>
@@ -164,6 +187,14 @@
             <button id="convertBtn" onclick="processText()">开始转换</button>
             <span id="statusMsg">✅ 已转换完成</span>
             <button id="downloadBtn" onclick="exportToWord()">下载doc文件</button>
+        </div>
+        
+        <div id="tipBox" class="tip-box">
+            <strong>请注意：</strong>
+            <ol>
+                <li>打开doc文档默认Web版式（小地球图标），请点击WPS/Word右下角切换为页面视图（页面图标），然后保存文档即可。</li>
+                <li>doc文档的标题字体是“方正小标宋_GBK”，正文是“方正仿宋_GB2312”，如发现字体不对，请自行下载安装这两款字体。</li>
+            </ol>
         </div>
     </div>
 
@@ -189,28 +220,22 @@
         let htmlContent = '';
 
         // 3. 逐行处理逻辑
+        const level2Regex = /^[一二三四五六七八九十]+、/;
+
         lines.forEach((line, index) => {
             let trimLine = line.trim();
-            if (trimLine === '') return; // 跳过空行
-
-            // 逻辑判断：
-            // 第一行 -> 大标题
-            // 以中文数字+顿号开头 (一、二、...) -> 二级标题
-            // 其他 -> 正文
-            
-            // 简单判断中文数字编号的正则：以 一、 或者 十一、 等开头
-            const level2Regex = /^[一二三四五六七八九十]+、/;
+            if (trimLine === '') return; 
 
             if (index === 0) {
-                // 大标题：方正小标宋_GBK，二号字(22pt)，不加粗，无缩进
+                // 大标题
                 htmlContent += `<div class="doc-title">${trimLine}</div>`;
             } 
             else if (level2Regex.test(trimLine)) {
-                // 二级标题：黑体，三号字(16pt)，不加粗，首行缩进2字符
+                // 二级标题
                 htmlContent += `<div class="doc-h2">${trimLine}</div>`;
             } 
             else {
-                // 正文：方正仿宋_GB2312，三号字(16pt)，不加粗，首行缩进2字符
+                // 正文
                 htmlContent += `<div class="doc-p">${trimLine}</div>`;
             }
         });
@@ -221,13 +246,12 @@
         // UI 交互更新
         document.getElementById('statusMsg').style.display = 'inline';
         document.getElementById('downloadBtn').style.display = 'inline-block';
+        document.getElementById('tipBox').style.display = 'block'; 
     }
 
     function exportToWord() {
         const content = document.getElementById('outputPreview').innerHTML;
         
-        // 构建一个完整的HTML结构，包含Word所需的Namespace和Style
-        // 关键点：将CSS直接内嵌到HTML头部，以便Word识别
         const header = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' 
                   xmlns:w='urn:schemas-microsoft-com:office:word' 
@@ -236,11 +260,10 @@
                 <meta charset='utf-8'>
                 <title>Export HTML to Word Document with CSS</title>
                 <style>
-                    /* 再次定义样式，确保Word能读取到 */
                     @page {
                         mso-page-orientation: portrait;
                         size: 21cm 29.7cm; /* A4 */
-                        margin: 2.54cm 3.17cm; /* 标准页边距 */
+                        margin: 2.54cm 3.17cm;
                     }
                     body {
                         font-family: "方正仿宋_GB2312", "FangSong", serif;
@@ -259,7 +282,7 @@
                         font-family: 'SimHei', '黑体', sans-serif;
                         font-size: 16pt;
                         font-weight: normal;
-                        text-indent: 2em;
+                        text-indent: 1.15cm; /* 更新 Word 样式中的缩进 */
                         line-height: 28.8pt;
                         margin: 0;
                         mso-style-name: "Heading 2";
@@ -268,11 +291,11 @@
                         font-family: '方正仿宋_GB2312', 'FangSong_GB2312', serif;
                         font-size: 16pt;
                         font-weight: normal;
-                        text-indent: 2em;
+                        text-indent: 1.15cm; /* 更新 Word 样式中的缩进 */
                         line-height: 28.8pt;
                         margin: 0;
                         text-align: justify;
-                        text-justify: inter-ideograph; /* 解决中文两端对齐问题 */
+                        text-justify: inter-ideograph;
                     }
                 </style>
             </head>
@@ -282,12 +305,10 @@
         const footer = "</body></html>";
         const sourceHTML = header + content + footer;
 
-        // 创建Blob对象
         const blob = new Blob(['\ufeff', sourceHTML], {
             type: 'application/msword'
         });
 
-        // 触发下载
         const downloadLink = document.createElement("a");
         document.body.appendChild(downloadLink);
 
