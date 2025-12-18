@@ -63,14 +63,26 @@
             cursor: pointer;
             border: none;
             border-radius: 4px;
-            transition: background 0.3s;
+            transition: background 0.3s, transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        /* 新增：清除格式按钮样式 (橙色系) */
+        #clearBtn {
+            background-color: #fd7e14;
+            color: white;
+        }
+        #clearBtn:hover {
+            background-color: #e36d0d;
         }
 
         #convertBtn {
             background-color: #007BFF;
             color: white;
         }
-
         #convertBtn:hover {
             background-color: #0056b3;
         }
@@ -80,7 +92,6 @@
             color: white;
             display: none; 
         }
-
         #downloadBtn:hover {
             background-color: #218838;
         }
@@ -142,7 +153,7 @@
         }
 
         /* * 核心样式定义：用于预览和导出 
-         * 更新：首行缩进改为 1.15cm
+         * 首行缩进 1.15cm
          */
         
         .doc-title {
@@ -159,7 +170,7 @@
             font-family: 'SimHei', '黑体', sans-serif;
             font-size: 16pt;
             font-weight: normal;
-            text-indent: 1.15cm; /* 这里修改为 1.15cm */
+            text-indent: 1.15cm;
             line-height: 28.8pt;
             margin: 0;
         }
@@ -168,7 +179,7 @@
             font-family: '方正仿宋_GB2312', 'FangSong_GB2312', 'FangSong', serif;
             font-size: 16pt;
             font-weight: normal;
-            text-indent: 1.15cm; /* 这里修改为 1.15cm */
+            text-indent: 1.15cm;
             line-height: 28.8pt;
             margin: 0;
             text-align: justify;
@@ -184,6 +195,7 @@
     <div class="input-section">
         <textarea id="inputText" placeholder="在此粘贴纯文本内容。&#10;第一行将被识别为大标题。&#10;以“一、”、“二、”开头的行将被识别为二级标题。"></textarea>
         <div class="controls">
+            <button id="clearBtn" onclick="clearMarkdown()">清除Markdown格式</button>
             <button id="convertBtn" onclick="processText()">开始转换</button>
             <span id="statusMsg">✅ 已转换完成</span>
             <button id="downloadBtn" onclick="exportToWord()">下载doc文件</button>
@@ -205,15 +217,54 @@
 </div>
 
 <script>
+    // 工具函数：智能处理连字符
+    // 删除所有"-"，除非它处于两个数字之间（如 8:00-9:00）
+    function smartRemoveHyphens(text) {
+        // 1. 先将“数字-数字”这种模式中的横杠替换为一个特殊的占位符
+        let protectedText = text.replace(/(\d)-(\d)/g, '$1§§HYPHEN§§$2');
+        // 2. 删除剩余所有的横杠
+        protectedText = protectedText.replace(/-/g, '');
+        // 3. 将占位符还原回横杠
+        return protectedText.replace(/§§HYPHEN§§/g, '-');
+    }
+
+    // 新功能：清除Markdown格式
+    function clearMarkdown() {
+        let text = document.getElementById('inputText').value;
+        if (!text) return;
+
+        // 1. 删除 *, #, | 符号
+        text = text.replace(/[\*#|]/g, '');
+
+        // 2. 智能删除连字符 (保留 8:00-9:00)
+        text = smartRemoveHyphens(text);
+
+        // 3. 处理每一行：删除首行空格，删除空行
+        let lines = text.split('\n');
+        let cleanedLines = [];
+
+        lines.forEach(line => {
+            // 删除开头的所有空白字符
+            let trimmedLine = line.replace(/^\s+/, ''); 
+            // 如果这一行不是空的，就保留
+            if (trimmedLine !== '') {
+                cleanedLines.push(trimmedLine);
+            }
+        });
+
+        // 4. 将处理后的文本放回输入框
+        document.getElementById('inputText').value = cleanedLines.join('\n');
+    }
+
     function processText() {
-        const rawText = document.getElementById('inputText').value;
+        let rawText = document.getElementById('inputText').value;
         if (!rawText.trim()) {
             alert("请输入需要转换的文本！");
             return;
         }
 
-        // 1. 去除用于分段的横杠 "-"
-        let cleanText = rawText.replace(/-/g, '');
+        // 1. 这里也使用智能去除连字符逻辑，防止用户没点“清除格式”直接点“开始转换”时误删时间段横杠
+        let cleanText = smartRemoveHyphens(rawText);
 
         // 2. 按行分割
         let lines = cleanText.split('\n');
@@ -282,7 +333,7 @@
                         font-family: 'SimHei', '黑体', sans-serif;
                         font-size: 16pt;
                         font-weight: normal;
-                        text-indent: 1.15cm; /* 更新 Word 样式中的缩进 */
+                        text-indent: 1.15cm;
                         line-height: 28.8pt;
                         margin: 0;
                         mso-style-name: "Heading 2";
@@ -291,7 +342,7 @@
                         font-family: '方正仿宋_GB2312', 'FangSong_GB2312', serif;
                         font-size: 16pt;
                         font-weight: normal;
-                        text-indent: 1.15cm; /* 更新 Word 样式中的缩进 */
+                        text-indent: 1.15cm;
                         line-height: 28.8pt;
                         margin: 0;
                         text-align: justify;
