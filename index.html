@@ -70,7 +70,6 @@
             transform: scale(0.98);
         }
 
-        /* 按钮颜色定义 */
         #clearBtn {
             background-color: #fd7e14;
             color: white;
@@ -152,7 +151,8 @@
             overflow-y: auto;
         }
 
-        /* * 核心样式定义：首行缩进 1.15cm */
+        /* * 核心样式定义 */
+        
         .doc-title {
             font-family: '方正小标宋_GBK', 'SimSun', serif;
             font-size: 22pt;
@@ -172,11 +172,23 @@
             margin: 0;
         }
 
+        /* 普通正文：缩进 1.15cm */
         .doc-p {
             font-family: '方正仿宋_GB2312', 'FangSong_GB2312', 'FangSong', serif;
             font-size: 16pt;
             font-weight: normal;
             text-indent: 1.15cm;
+            line-height: 28.8pt;
+            margin: 0;
+            text-align: justify;
+        }
+
+        /* 附件列表专用：缩进 2.84cm */
+        .doc-p-indent-deep {
+            font-family: '方正仿宋_GB2312', 'FangSong_GB2312', 'FangSong', serif;
+            font-size: 16pt;
+            font-weight: normal;
+            text-indent: 2.84cm; /* 2.84厘米缩进 */
             line-height: 28.8pt;
             margin: 0;
             text-align: justify;
@@ -224,7 +236,7 @@
         return protectedText.replace(/§§HYPHEN§§/g, '-');
     }
 
-    // 新功能：清除Markdown格式及多余空格
+    // 功能：清除Markdown格式、引用符号、Emoji及多余空格
     function clearMarkdown() {
         let text = document.getElementById('inputText').value;
         if (!text) return;
@@ -232,30 +244,39 @@
         // 1. 删除 Markdown 符号 (*, #, |)
         text = text.replace(/[\*#|]/g, '');
 
-        // 2. 智能删除连字符 (保留 8:00-9:00)
+        // 2. 删除 引用符号 > (行首的 > 及其后的空格)
+        text = text.replace(/^>\s*/gm, '');
+
+        // 3. 删除 所有 Emoji 表情符号
+        // 使用 Unicode Property Escapes 匹配所有图形符号
+        if (/\p{Extended_Pictographic}/u.test('test')) {
+            text = text.replace(/\p{Extended_Pictographic}/gu, '');
+        } else {
+            // 降级方案（兼容旧浏览器）
+            text = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+        }
+
+        // 4. 智能删除连字符 (保留 8:00-9:00)
         text = smartRemoveHyphens(text);
 
-        // 3. 【新增逻辑】删除序号后的空格
-        // 3a. 处理 "四、 活动" -> "四、活动" (删除顿号后的空格)
+        // 5. 格式清洗
+        // 5a. 删除顿号后的空格 (四、 活动 -> 四、活动)
         text = text.replace(/、\s+/g, '、');
         
-        // 3b. 处理 "1. 活动" -> "1.活动" (删除数字加点后的空格)
+        // 5b. 删除数字加点后的空格 (1. 活动 -> 1.活动)
         text = text.replace(/(\d+)\.\s+/g, '$1.');
 
-        // 4. 处理每一行：删除首行空格，删除空行
+        // 6. 处理每一行：删除首行空格，删除空行
         let lines = text.split('\n');
         let cleanedLines = [];
 
         lines.forEach(line => {
-            // 删除开头的所有空白字符
             let trimmedLine = line.replace(/^\s+/, ''); 
-            // 如果这一行不是空的，就保留
             if (trimmedLine !== '') {
                 cleanedLines.push(trimmedLine);
             }
         });
 
-        // 5. 将处理后的文本放回输入框
         document.getElementById('inputText').value = cleanedLines.join('\n');
     }
 
@@ -266,38 +287,53 @@
             return;
         }
 
-        // 转换前也执行一次智能去横杠，防止用户跳过清除步骤
         let cleanText = smartRemoveHyphens(rawText);
 
-        // 按行分割
         let lines = cleanText.split('\n');
         let htmlContent = '';
 
-        // 逐行处理逻辑
+        // 状态标记：是否已经遇到了“附件：”
+        let hasAttachmentStart = false;
+
         const level2Regex = /^[一二三四五六七八九十]+、/;
 
         lines.forEach((line, index) => {
             let trimLine = line.trim();
             if (trimLine === '') return; 
 
+            // 检测是否包含“附件：”
+            if (trimLine.includes("附件：") || trimLine.includes("附件:")) {
+                hasAttachmentStart = true;
+            }
+
             if (index === 0) {
                 // 大标题
                 htmlContent += `<div class="doc-title">${trimLine}</div>`;
             } 
             else if (level2Regex.test(trimLine)) {
-                // 二级标题
+                // 二级标题 (优先级高于附件列表检测，防止误判)
                 htmlContent += `<div class="doc-h2">${trimLine}</div>`;
             } 
             else {
-                // 正文
-                htmlContent += `<div class="doc-p">${trimLine}</div>`;
+                // 正文处理
+                // 判断是否为附件列表项：
+                // 1. 必须已经出现过“附件：”
+                // 2. 当前行不是包含“附件：”的那一行（第一行附件通常用普通缩进）
+                // 3. 当前行以数字开头 (2. 乙 或 3、丙)
+                const isListItem = /^(\d+)[.、]/.test(trimLine);
+                const isCurrentLineAttachmentHeader = trimLine.includes("附件：") || trimLine.includes("附件:");
+
+                if (hasAttachmentStart && isListItem && !isCurrentLineAttachmentHeader) {
+                    // 满足条件：应用 2.84cm 缩进
+                    htmlContent += `<div class="doc-p-indent-deep">${trimLine}</div>`;
+                } else {
+                    // 普通正文或附件第一行：应用 1.15cm 缩进
+                    htmlContent += `<div class="doc-p">${trimLine}</div>`;
+                }
             }
         });
 
-        // 渲染到预览框
         document.getElementById('outputPreview').innerHTML = htmlContent;
-
-        // UI 交互更新
         document.getElementById('statusMsg').style.display = 'inline';
         document.getElementById('downloadBtn').style.display = 'inline-block';
         document.getElementById('tipBox').style.display = 'block'; 
@@ -346,6 +382,16 @@
                         font-size: 16pt;
                         font-weight: normal;
                         text-indent: 1.15cm;
+                        line-height: 28.8pt;
+                        margin: 0;
+                        text-align: justify;
+                        text-justify: inter-ideograph;
+                    }
+                    .doc-p-indent-deep {
+                        font-family: '方正仿宋_GB2312', 'FangSong_GB2312', serif;
+                        font-size: 16pt;
+                        font-weight: normal;
+                        text-indent: 2.84cm; /* 导出样式同步更新 */
                         line-height: 28.8pt;
                         margin: 0;
                         text-align: justify;
